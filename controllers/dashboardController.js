@@ -1,35 +1,33 @@
 const mongoose = require("mongoose");
 const Consultant = require("../models/UnapprovedConsultant");
+const Customer = require("../models/Customer");
+const Order = require("../models/order");
 
 exports.getTopIndustries = async (req, res) => {
   try {
     const results = await Consultant.aggregate([
+      // Match documents where 'industry' field exists and is not null
       {
         $match: {
-          "data.Industry working /Worked in (Mark most recent 3)": {
-            $ne: null,
-          },
+          "basicdetails.industry": { $exists: true, $ne: [] },
         },
       },
+      // Unwind the 'basicdetails' array
       {
-        $project: {
-          industries: {
-            $split: [
-              "$data.Industry working /Worked in (Mark most recent 3)",
-              ",",
-            ],
-          },
-        },
+        $unwind: "$basicdetails",
       },
+      // Unwind the 'industry' array inside 'basicdetails'
       {
-        $unwind: "$industries",
+        $unwind: "$basicdetails.industry",
       },
+      // Group by 'industry' and count occurrences
       {
         $group: {
-          _id: { $trim: { input: "$industries" } },
+          _id: { $trim: { input: "$basicdetails.industry" } },
           count: { $sum: 1 },
         },
       },
+      // Sort by count in descending order
       {
         $sort: { count: -1 },
       },
@@ -51,29 +49,28 @@ exports.getTopIndustries = async (req, res) => {
 exports.consultantExpertise = async (req, res) => {
   try {
     const results = await Consultant.aggregate([
+      // Match documents where 'industry' field exists and is not null
       {
         $match: {
-          "data.Specify  key words - skills and expertise ": {
-            $ne: null,
-          },
+          "basicdetails.skills": { $exists: true, $ne: [] },
         },
       },
+      // Unwind the 'basicdetails' array
       {
-        $project: {
-          skills: {
-            $split: ["$data.Specify  key words - skills and expertise ", ","],
-          },
-        },
+        $unwind: "$basicdetails",
       },
+      // Unwind the 'industry' array inside 'basicdetails'
       {
-        $unwind: "$skills",
+        $unwind: "$basicdetails.skills",
       },
+      // Group by 'industry' and count occurrences
       {
         $group: {
-          _id: { $trim: { input: "$skills" } },
+          _id: { $trim: { input: "$basicdetails.skills" } },
           count: { $sum: 1 },
         },
       },
+      // Sort by count in descending order
       {
         $sort: { count: -1 },
       },
@@ -88,6 +85,71 @@ exports.consultantExpertise = async (req, res) => {
       status: "error",
       message: "Error fetching data",
       error: err.message,
+    });
+  }
+};
+
+exports.totalCustomers = async (req, res) => {
+  try {
+    // Get the total number of customers in the collection
+    const count = await Customer.countDocuments();
+
+    res.status(200).json({
+      status: "success",
+      totalCustomers: count,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: "error",
+      message: "Error fetching total number of customers",
+      error: error.message,
+    });
+  }
+};
+exports.totalConsultants = async (req, res) => {
+  try {
+    // Get the total number of customers in the collection
+    const count = await Consultant.countDocuments();
+
+    res.status(200).json({
+      status: "success",
+      totalConsultants: count,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: "error",
+      message: "Error fetching total number of consultants",
+      error: error.message,
+    });
+  }
+};
+
+exports.totalRevenue = async (req, res) => {
+  try {
+    // Calculate the total revenue
+    const result = await Order.aggregate([
+      {
+        $group: {
+          _id: null, // Grouping all documents together
+          totalRevenue: { $sum: "$amount" }, // Summing up the 'amount' field
+        },
+      },
+    ]);
+
+    // Extract total revenue from the result
+    const totalRevenue = result.length > 0 ? result[0].totalRevenue : 0;
+
+    res.status(200).json({
+      status: "success",
+      totalRevenue,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Error fetching total revenue",
+      error: error.message,
     });
   }
 };
